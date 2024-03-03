@@ -55,7 +55,7 @@ from scipy.io import wavfile
 from tools.my_utils import load_audio
 from multiprocessing import cpu_count
 
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1' # 当遇到mps不支持的步骤时使用cpu
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1' # mpsがサポートしていないステップに遭遇した場合は、cpuを使用する。
 
 n_cpu=cpu_count()
            
@@ -64,26 +64,26 @@ gpu_infos = []
 mem = []
 if_gpu_ok = False
 
-# 判断是否有能用来训练和加速推理的N卡
+# 推論の訓練と加速に使えるNカードがあるかどうかを判断する。
 if torch.cuda.is_available() or ngpu != 0:
     for i in range(ngpu):
         gpu_name = torch.cuda.get_device_name(i)
         if any(value in gpu_name.upper()for value in ["10","16","20","30","40","A2","A3","A4","P4","A50","500","A60","70","80","90","M4","T4","TITAN","L4","4060"]):
             # A10#A100#V100#A40#P40#M40#K80#A4500
-            if_gpu_ok = True  # 至少有一张能用的N卡
+            if_gpu_ok = True  # 少なくとも1枚のNカードが使えること。
             gpu_infos.append("%s\t%s" % (i, gpu_name))
             mem.append(int(torch.cuda.get_device_properties(i).total_memory/ 1024/ 1024/ 1024+ 0.4))
-# 判断是否支持mps加速
+# mpsアクセラレーションがサポートされているかどうかを判断する
 if torch.backends.mps.is_available():
     if_gpu_ok = True
     gpu_infos.append("%s\t%s" % ("0", "Apple GPU"))
-    mem.append(psutil.virtual_memory().total/ 1024 / 1024 / 1024) # 实测使用系统内存作为显存不会爆显存
+    mem.append(psutil.virtual_memory().total/ 1024 / 1024 / 1024) # ビデオメモリをバーストさせないため、システムメモリを使用してテスト。
 
 if if_gpu_ok and len(gpu_infos) > 0:
     gpu_info = "\n".join(gpu_infos)
     default_batch_size = min(mem) // 2
 else:
-    gpu_info = i18n("很遗憾您这没有能用的显卡来支持您训练")
+    gpu_info = i18n("あなたのトレーニングをサポートするビデオカードが使えないのは残念です。")
     default_batch_size = 1
 gpus = "-".join([i[0] for i in gpu_infos])
 
@@ -104,9 +104,9 @@ os.makedirs(GPT_weight_root,exist_ok=True)
 SoVITS_names,GPT_names = get_weights_names()
 
 def custom_sort_key(s):
-    # 使用正则表达式提取字符串中的数字部分和非数字部分
+    # 正規表現を使用した文字列の数値部分と非数値部分の抽出
     parts = re.split('(\d+)', s)
-    # 将数字部分转换为整数，非数字部分保持不变
+    # 数値部分を整数に変換し、数値以外の部分は変更しない。
     parts = [int(part) if part.isdigit() else part for part in parts]
     return parts
 
@@ -153,25 +153,25 @@ def change_label(if_label,path_list):
     if(if_label==True and p_label==None):
         path_list=my_utils.clean_path(path_list)
         cmd = '"%s" tools/subfix_webui.py --load_list "%s" --webui_port %s --is_share %s'%(python_exec,path_list,webui_port_subfix,is_share)
-        yield i18n("打标工具WebUI已开启")
+        yield i18n("マーキングツールのWebUIがオン")
         print(cmd)
         p_label = Popen(cmd, shell=True)
     elif(if_label==False and p_label!=None):
         kill_process(p_label.pid)
         p_label=None
-        yield i18n("打标工具WebUI已关闭")
+        yield i18n("マーキングツールWebUIが終了しました")
 
 def change_uvr5(if_uvr5):
     global p_uvr5
     if(if_uvr5==True and p_uvr5==None):
         cmd = '"%s" tools/uvr5/webui.py "%s" %s %s %s'%(python_exec,infer_device,is_half,webui_port_uvr5,is_share)
-        yield i18n("UVR5已开启")
+        yield i18n("UVR5が始動した。")
         print(cmd)
         p_uvr5 = Popen(cmd, shell=True)
     elif(if_uvr5==False and p_uvr5!=None):
         kill_process(p_uvr5.pid)
         p_uvr5=None
-        yield i18n("UVR5已关闭")
+        yield i18n("UVR5がクローズ")
 
 def change_tts_inference(if_tts,bert_path,cnhubert_base_path,gpu_number,gpt_path,sovits_path):
     global p_tts_inference
@@ -185,13 +185,13 @@ def change_tts_inference(if_tts,bert_path,cnhubert_base_path,gpu_number,gpt_path
         os.environ["infer_ttswebui"]=str(webui_port_infer_tts)
         os.environ["is_share"]=str(is_share)
         cmd = '"%s" GPT_SoVITS/inference_webui.py'%(python_exec)
-        yield i18n("TTS推理进程已开启")
+        yield i18n("TTSの推論プロセスはオープン")
         print(cmd)
         p_tts_inference = Popen(cmd, shell=True)
     elif(if_tts==False and p_tts_inference!=None):
         kill_process(p_tts_inference.pid)
         p_tts_inference=None
-        yield i18n("TTS推理进程已关闭")
+        yield i18n("TTS推論プロセス終了")
 
 from tools.asr.config import asr_dict
 def open_asr(asr_inp_dir, asr_opt_dir, asr_model, asr_model_size, asr_lang):
@@ -205,14 +205,14 @@ def open_asr(asr_inp_dir, asr_opt_dir, asr_model, asr_model_size, asr_lang):
         cmd += f' -l {asr_lang}'
         cmd += " -p %s"%("float16"if is_half==True else "float32")
 
-        yield "ASR任务开启：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "ASRミッション開始：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         print(cmd)
         p_asr = Popen(cmd, shell=True)
         p_asr.wait()
         p_asr=None
-        yield f"ASR任务完成, 查看终端进行下一步",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield f"ASRタスク完了、次のステップのために端末を表示",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的ASR任务，需先终止才能开启下一次任务",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "すでに進行中のASRタスクがあり、次のタスクを開始する前に終了する必要があります。",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         # return None
 
 def close_asr():
@@ -220,7 +220,7 @@ def close_asr():
     if(p_asr!=None):
         kill_process(p_asr.pid)
         p_asr=None
-    return "已终止ASR进程",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+    return "ASRプロセス終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
 def open_denoise(denoise_inp_dir, denoise_opt_dir):
     global p_denoise
     if(p_denoise==None):
@@ -228,14 +228,14 @@ def open_denoise(denoise_inp_dir, denoise_opt_dir):
         denoise_opt_dir=my_utils.clean_path(denoise_opt_dir)
         cmd = '"%s" tools/cmd-denoise.py -i "%s" -o "%s" -p %s'%(python_exec,denoise_inp_dir,denoise_opt_dir,"float16"if is_half==True else "float32")
 
-        yield "语音降噪任务开启：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "音声ノイズ低減タスク・オン：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         print(cmd)
         p_denoise = Popen(cmd, shell=True)
         p_denoise.wait()
         p_denoise=None
-        yield f"语音降噪任务完成, 查看终端进行下一步",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield f"音声ノイズ低減タスクが完了しました。",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的语音降噪任务，需先终止才能开启下一次任务",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "すでに進行中の音声ノイズ除去タスクがあり、次のタスクを開始する前に終了する必要があります。",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         # return None
 
 def close_denoise():
@@ -243,7 +243,7 @@ def close_denoise():
     if(p_denoise!=None):
         kill_process(p_denoise.pid)
         p_denoise=None
-    return "已终止语音降噪进程",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+    return "音声ノイズキャンセリング処理が終了しました",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
 
 p_train_SoVITS=None
 def open1Ba(batch_size,total_epoch,exp_name,text_low_lr_rate,if_save_latest,if_save_every_weights,save_every_epoch,gpu_numbers1Ba,pretrained_s2G,pretrained_s2D):
@@ -273,21 +273,21 @@ def open1Ba(batch_size,total_epoch,exp_name,text_low_lr_rate,if_save_latest,if_s
         with open(tmp_config_path,"w")as f:f.write(json.dumps(data))
 
         cmd = '"%s" GPT_SoVITS/s2_train.py --config "%s"'%(python_exec,tmp_config_path)
-        yield "SoVITS训练开始：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "SoVITSトレーニング開始：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         print(cmd)
         p_train_SoVITS = Popen(cmd, shell=True)
         p_train_SoVITS.wait()
         p_train_SoVITS=None
-        yield "SoVITS训练完成",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "SoVITSトレーニング完了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的SoVITS训练任务，需先终止才能开启下一次任务",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "すでに進行中のSoVITSトレーニングタスクがあり、次のタスクを開始する前に終了させる必要があります。",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
 
 def close1Ba():
     global p_train_SoVITS
     if(p_train_SoVITS!=None):
         kill_process(p_train_SoVITS.pid)
         p_train_SoVITS=None
-    return "已终止SoVITS训练",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+    return "SoVITSトレーニングは終了しました",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
 
 p_train_GPT=None
 def open1Bb(batch_size,total_epoch,exp_name,if_dpo,if_save_latest,if_save_every_weights,save_every_epoch,gpu_numbers,pretrained_s1):
@@ -320,21 +320,21 @@ def open1Bb(batch_size,total_epoch,exp_name,if_dpo,if_save_latest,if_save_every_
         with open(tmp_config_path, "w") as f:f.write(yaml.dump(data, default_flow_style=False))
         # cmd = '"%s" GPT_SoVITS/s1_train.py --config_file "%s" --train_semantic_path "%s/6-name2semantic.tsv" --train_phoneme_path "%s/2-name2text.txt" --output_dir "%s/logs_s1"'%(python_exec,tmp_config_path,s1_dir,s1_dir,s1_dir)
         cmd = '"%s" GPT_SoVITS/s1_train.py --config_file "%s" '%(python_exec,tmp_config_path)
-        yield "GPT训练开始：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "GPTトレーニング開始：%s"%cmd,{"__type__":"update","visible":False},{"__type__":"update","visible":True}
         print(cmd)
         p_train_GPT = Popen(cmd, shell=True)
         p_train_GPT.wait()
         p_train_GPT=None
-        yield "GPT训练完成",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "GPTトレーニング終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的GPT训练任务，需先终止才能开启下一次任务",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
+        yield "すでに進行中のGPTトレーニング・タスクがあり、次のタスクを開始する前に終了する必要があります。",{"__type__":"update","visible":False},{"__type__":"update","visible":True}
 
 def close1Bb():
     global p_train_GPT
     if(p_train_GPT!=None):
         kill_process(p_train_GPT.pid)
         p_train_GPT=None
-    return "已终止GPT训练",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+    return "GPTトレーニングは終了しました",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
 
 ps_slice=[]
 def open_slice(inp,opt_root,threshold,min_length,min_interval,hop_size,max_sil_kept,_max,alpha,n_parts):
@@ -342,12 +342,12 @@ def open_slice(inp,opt_root,threshold,min_length,min_interval,hop_size,max_sil_k
     inp = my_utils.clean_path(inp)
     opt_root = my_utils.clean_path(opt_root)
     if(os.path.exists(inp)==False):
-        yield "输入路径不存在",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "入力パスが存在しない",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
         return
     if os.path.isfile(inp):n_parts=1
     elif os.path.isdir(inp):pass
     else:
-        yield "输入路径存在但既不是文件也不是文件夹",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "入力パスは存在するが、ファイルでもフォルダでもない。",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
         return
     if (ps_slice == []):
         for i_part in range(n_parts):
@@ -355,13 +355,13 @@ def open_slice(inp,opt_root,threshold,min_length,min_interval,hop_size,max_sil_k
             print(cmd)
             p = Popen(cmd, shell=True)
             ps_slice.append(p)
-        yield "切割执行中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "カッティング中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
         for p in ps_slice:
             p.wait()
         ps_slice=[]
-        yield "切割结束",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "カット終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的切割任务，需先终止才能开启下一次任务", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "次のタスクを開始する前に終了させる必要があるカッティング・タスクがすでに進行中です。", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
 
 def close_slice():
     global ps_slice
@@ -372,7 +372,7 @@ def close_slice():
             except:
                 traceback.print_exc()
         ps_slice=[]
-    return "已终止所有切割进程", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+    return "すべてのカッティング工程を終了", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
 
 ps1a=[]
 def open1a(inp_text,inp_wav_dir,exp_name,gpu_numbers,bert_pretrained_dir):
@@ -404,7 +404,7 @@ def open1a(inp_text,inp_wav_dir,exp_name,gpu_numbers,bert_pretrained_dir):
             print(cmd)
             p = Popen(cmd, shell=True)
             ps1a.append(p)
-        yield "文本进程执行中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "テキスト作成中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
         for p in ps1a:
             p.wait()
         opt = []
@@ -417,9 +417,9 @@ def open1a(inp_text,inp_wav_dir,exp_name,gpu_numbers,bert_pretrained_dir):
         with open(path_text, "w", encoding="utf8") as f:
             f.write("\n".join(opt) + "\n")
         ps1a=[]
-        yield "文本进程结束",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "テキストプロセス終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的文本任务，需先终止才能开启下一次任务", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "すでに進行中のテキスト・タスクがあり、次のタスクを開始する前に終了させる必要がある。", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
 
 def close1a():
     global ps1a
@@ -461,13 +461,13 @@ def open1b(inp_text,inp_wav_dir,exp_name,gpu_numbers,ssl_pretrained_dir):
             print(cmd)
             p = Popen(cmd, shell=True)
             ps1b.append(p)
-        yield "SSL提取进程执行中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "SSL抽出処理中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
         for p in ps1b:
             p.wait()
         ps1b=[]
-        yield "SSL提取进程结束",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "SSL抽出プロセスの終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的SSL提取任务，需先终止才能开启下一次任务", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "すでに進行中のSSL抽出タスクがあり、次のタスクを開始する前に終了する必要があります。", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
 
 def close1b():
     global ps1b
@@ -478,7 +478,7 @@ def close1b():
             except:
                 traceback.print_exc()
         ps1b=[]
-    return "已终止所有1b进程", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+    return "すべての1bプロセスが終了しました", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
 
 ps1c=[]
 def open1c(inp_text,exp_name,gpu_numbers,pretrained_s2G_path):
@@ -509,7 +509,7 @@ def open1c(inp_text,exp_name,gpu_numbers,pretrained_s2G_path):
             print(cmd)
             p = Popen(cmd, shell=True)
             ps1c.append(p)
-        yield "语义token提取进程执行中", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "実行中のセマンティックトークン抽出プロセス", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
         for p in ps1c:
             p.wait()
         opt = ["item_name\tsemantic_audio"]
@@ -522,9 +522,9 @@ def open1c(inp_text,exp_name,gpu_numbers,pretrained_s2G_path):
         with open(path_semantic, "w", encoding="utf8") as f:
             f.write("\n".join(opt) + "\n")
         ps1c=[]
-        yield "语义token提取进程结束",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
+        yield "セマンティック・トークン抽出処理終了",{"__type__":"update","visible":True},{"__type__":"update","visible":False}
     else:
-        yield "已有正在进行的语义token提取任务，需先终止才能开启下一次任务", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "すでにセマンティック・トークン抽出タスクが進行中で、次のタスクを開始する前に終了する必要がある。", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
 
 def close1c():
     global ps1c
@@ -535,7 +535,7 @@ def close1c():
             except:
                 traceback.print_exc()
         ps1c=[]
-    return "已终止所有语义token进程", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+    return "すべてのセマンティック・トークン・プロセスが終了しました", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
 #####inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numbers1c,bert_pretrained_dir,cnhubert_base_dir,pretrained_s2G
 ps1abc=[]
 def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numbers1c,bert_pretrained_dir,ssl_pretrained_dir,pretrained_s2G_path):
@@ -571,7 +571,7 @@ def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numb
                     print(cmd)
                     p = Popen(cmd, shell=True)
                     ps1abc.append(p)
-                yield "进度：1a-ing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+                yield "進捗度：1a-ing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
                 for p in ps1abc:p.wait()
 
                 opt = []
@@ -583,7 +583,7 @@ def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numb
                 with open(path_text, "w",encoding="utf8") as f:
                     f.write("\n".join(opt) + "\n")
 
-            yield "进度：1a-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+            yield "進捗度：1a-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
             ps1abc=[]
             #############################1b
             config={
@@ -608,9 +608,9 @@ def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numb
                 print(cmd)
                 p = Popen(cmd, shell=True)
                 ps1abc.append(p)
-            yield "进度：1a-done, 1b-ing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+            yield "進捗度：1a-done, 1b-ing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
             for p in ps1abc:p.wait()
-            yield "进度：1a1b-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+            yield "進捗度：1a1b-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
             ps1abc=[]
             #############################1c
             path_semantic = "%s/6-name2semantic.tsv" % opt_dir
@@ -637,7 +637,7 @@ def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numb
                     print(cmd)
                     p = Popen(cmd, shell=True)
                     ps1abc.append(p)
-                yield "进度：1a1b-done, 1cing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+                yield "進捗度：1a1b-done, 1cing", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
                 for p in ps1abc:p.wait()
 
                 opt = ["item_name\tsemantic_audio"]
@@ -648,15 +648,15 @@ def open1abc(inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numb
                     os.remove(semantic_path)
                 with open(path_semantic, "w",encoding="utf8") as f:
                     f.write("\n".join(opt) + "\n")
-                yield "进度：all-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+                yield "進捗度：all-done", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
             ps1abc = []
-            yield "一键三连进程结束", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+            yield "ワンクリックでトリプルプロセス終了", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
         except:
             traceback.print_exc()
             close1abc()
-            yield "一键三连中途报错", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+            yield "ワンタッチ三連発の途中でエラー", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
     else:
-        yield "已有正在进行的一键三连任务，需先终止才能开启下一次任务", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
+        yield "すでに進行中のワンクリック・トリフェクタ・ミッションがあり、次のミッションを開始する前に終了させる必要がある。", {"__type__": "update", "visible": False}, {"__type__": "update", "visible": True}
 
 def close1abc():
     global ps1abc
@@ -667,104 +667,104 @@ def close1abc():
             except:
                 traceback.print_exc()
         ps1abc=[]
-    return "已终止所有一键三连进程", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
+    return "すべてのワンクリック三連単プロセスが終了しました", {"__type__": "update", "visible": True}, {"__type__": "update", "visible": False}
 
 with gr.Blocks(title="GPT-SoVITS WebUI") as app:
     gr.Markdown(
         value=
-            i18n("本软件以MIT协议开源, 作者不对软件具备任何控制力, 使用软件者、传播软件导出的声音者自负全责. <br>如不认可该条款, 则不能使用或引用软件包内任何代码和文件. 详见根目录<b>LICENSE</b>.")
+            i18n("本ソフトウェアはMITプロトコルによるオープンソースであり、作者は本ソフトウェアを管理しておらず、本ソフトウェアの使用および本ソフトウェアに由来する音の配布は、使用者の責任において行われるものとします。<br>これらの条件に同意しない場合、パッケージ内のコードやファイルを使用したり参照したりすることはできません。詳細はルートディレクトリをご覧ください<b>LICENSE</b>.")
     )
     gr.Markdown(
         value=
-            i18n("中文教程文档：https://www.yuque.com/baicaigongchang1145haoyuangong/ib3g1e")
+            i18n("中国語チュートリアル・ドキュメント：https://www.yuque.com/baicaigongchang1145haoyuangong/ib3g1e")
     )
 
     with gr.Tabs():
-        with gr.TabItem(i18n("0-前置数据集获取工具")):#提前随机切片防止uvr5爆内存->uvr5->slicer->asr->打标
-            gr.Markdown(value=i18n("0a-UVR5人声伴奏分离&去混响去延迟工具"))
+        with gr.TabItem(i18n("0-予備データセット取得ツール")):#uvr5のバーストメモリ→uvr5→スライサー→asr→マーキングの順でランダムスライスを進める
+            gr.Markdown(value=i18n("0a-UVR5 ボーカル伴奏セパレーション＆ディリバーブ＆ディレイツール"))
             with gr.Row():
-                if_uvr5 = gr.Checkbox(label=i18n("是否开启UVR5-WebUI"),show_label=True)
-                uvr5_info = gr.Textbox(label=i18n("UVR5进程输出信息"))
-            gr.Markdown(value=i18n("0b-语音切分工具"))
+                if_uvr5 = gr.Checkbox(label=i18n("UVR5-WebUIを有効にするかどうか"),show_label=True)
+                uvr5_info = gr.Textbox(label=i18n("UVR5プロセス出力情報"))
+            gr.Markdown(value=i18n("0b-音声スライスツール"))
             with gr.Row():
                 with gr.Row():
-                    slice_inp_path=gr.Textbox(label=i18n("音频自动切分输入路径，可文件可文件夹"),value="")
-                    slice_opt_root=gr.Textbox(label=i18n("切分后的子音频的输出根目录"),value="output/slicer_opt")
-                    threshold=gr.Textbox(label=i18n("threshold:音量小于这个值视作静音的备选切割点"),value="-34")
-                    min_length=gr.Textbox(label=i18n("min_length:每段最小多长，如果第一段太短一直和后面段连起来直到超过这个值"),value="4000")
-                    min_interval=gr.Textbox(label=i18n("min_interval:最短切割间隔"),value="300")
-                    hop_size=gr.Textbox(label=i18n("hop_size:怎么算音量曲线，越小精度越大计算量越高（不是精度越大效果越好）"),value="10")
-                    max_sil_kept=gr.Textbox(label=i18n("max_sil_kept:切完后静音最多留多长"),value="500")
+                    slice_inp_path=gr.Textbox(label=i18n("オーディオは自動的に入力パス（ファイルまたはフォルダ）をスライスします。"),value="")
+                    slice_opt_root=gr.Textbox(label=i18n("切り分けられたサブオーディオの出力ルートディレクトリ"),value="output/slicer_opt")
+                    threshold=gr.Textbox(label=i18n("threshold:この値より小さい音量をミュートとみなす別のカットポイント"),value="-34")
+                    min_length=gr.Textbox(label=i18n("min_length:各セグメントの最小の長さはいくらか。最初のセグメントが短すぎる場合、この値を超えるまで常に次のセグメントに接続される。"),value="4000")
+                    min_interval=gr.Textbox(label=i18n("min_interval:最小切断間隔"),value="300")
+                    hop_size=gr.Textbox(label=i18n("hop_size:体積曲線の計算方法、精度が低いほど計算値が高くなる（精度が高いほど計算結果が良くなるわけではない））"),value="10")
+                    max_sil_kept=gr.Textbox(label=i18n("max_sil_kept:カットした後、ミュートはどれくらいの時間維持されますか？"),value="500")
                 with gr.Row():
-                    open_slicer_button=gr.Button(i18n("开启语音切割"), variant="primary",visible=True)
-                    close_slicer_button=gr.Button(i18n("终止语音切割"), variant="primary",visible=False)
-                    _max=gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("max:归一化后最大值多少"),value=0.9,interactive=True)
-                    alpha=gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("alpha_mix:混多少比例归一化后音频进来"),value=0.25,interactive=True)
-                    n_process=gr.Slider(minimum=1,maximum=n_cpu,step=1,label=i18n("切割使用的进程数"),value=4,interactive=True)
-                    slicer_info = gr.Textbox(label=i18n("语音切割进程输出信息"))
-            gr.Markdown(value=i18n("0bb-语音降噪工具"))
+                    open_slicer_button=gr.Button(i18n("ボイスカットをオンにする"), variant="primary",visible=True)
+                    close_slicer_button=gr.Button(i18n("音声カットの終了"), variant="primary",visible=False)
+                    _max=gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("max:正規化後の最大値"),value=0.9,interactive=True)
+                    alpha=gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("alpha_mix:ノーマライズされたオーディオをいくつの比率でミックスするか"),value=0.25,interactive=True)
+                    n_process=gr.Slider(minimum=1,maximum=n_cpu,step=1,label=i18n("切断工程数"),value=4,interactive=True)
+                    slicer_info = gr.Textbox(label=i18n("音声切断工程の出力情報"))
+            gr.Markdown(value=i18n("0bb-音声ノイズ除去ツール"))
             with gr.Row():
-                open_denoise_button = gr.Button(i18n("开启语音降噪"), variant="primary",visible=True)
-                close_denoise_button = gr.Button(i18n("终止语音降噪进程"), variant="primary",visible=False)
-                denoise_input_dir=gr.Textbox(label=i18n("降噪音频文件输入文件夹"),value="")
-                denoise_output_dir=gr.Textbox(label=i18n("降噪结果输出文件夹"),value="output/denoise_opt")
-                denoise_info = gr.Textbox(label=i18n("语音降噪进程输出信息"))
-            gr.Markdown(value=i18n("0c-中文批量离线ASR工具"))
+                open_denoise_button = gr.Button(i18n("音声ノイズ低減を有効にする"), variant="primary",visible=True)
+                close_denoise_button = gr.Button(i18n("音声ノイズ除去処理を終了する"), variant="primary",visible=False)
+                denoise_input_dir=gr.Textbox(label=i18n("ノイズキャンセリング音声ファイル入力フォルダ"),value="")
+                denoise_output_dir=gr.Textbox(label=i18n("ノイズ除去結果出力フォルダ"),value="output/denoise_opt")
+                denoise_info = gr.Textbox(label=i18n("音声ノイズキャンセリング処理出力情報"))
+            gr.Markdown(value=i18n("0c-中国語バッチ式オフラインASRツール"))
             with gr.Row():
-                open_asr_button = gr.Button(i18n("开启离线批量ASR"), variant="primary",visible=True)
-                close_asr_button = gr.Button(i18n("终止ASR进程"), variant="primary",visible=False)
+                open_asr_button = gr.Button(i18n("オフラインバッチASRを有効にする"), variant="primary",visible=True)
+                close_asr_button = gr.Button(i18n("ASRプロセスの終了"), variant="primary",visible=False)
                 with gr.Column():
                     with gr.Row():
                         asr_inp_dir = gr.Textbox(
-                            label=i18n("输入文件夹路径"),
+                            label=i18n("フォルダパスを入力"),
                             value="D:\\GPT-SoVITS\\raw\\xxx",
                             interactive=True,
                         )
                         asr_opt_dir = gr.Textbox(
-                            label       = i18n("输出文件夹路径"),
+                            label       = i18n("出力フォルダパス"),
                             value       = "output/asr_opt",
                             interactive = True,
                         )
                     with gr.Row():
                         asr_model = gr.Dropdown(
-                            label       = i18n("ASR 模型"),
+                            label       = i18n("ASR モデリング"),
                             choices     = list(asr_dict.keys()),
                             interactive = True,
-                            value="达摩 ASR (中文)"
+                            value="ダルマASR（中国語）"
                         )
                         asr_size = gr.Dropdown(
-                            label       = i18n("ASR 模型尺寸"),
+                            label       = i18n("ASRモデルの寸法"),
                             choices     = ["large"],
                             interactive = True,
                             value="large"
                         )
                         asr_lang = gr.Dropdown(
-                            label       = i18n("ASR 语言设置"),
+                            label       = i18n("ASR言語設定"),
                             choices     = ["zh"],
                             interactive = True,
                             value="zh"
                         )
                     with gr.Row():
-                        asr_info = gr.Textbox(label=i18n("ASR进程输出信息"))
+                        asr_info = gr.Textbox(label=i18n("ASRプロセス出力情報"))
 
-                def change_lang_choices(key): #根据选择的模型修改可选的语言
+                def change_lang_choices(key): #選択したモデルに応じてオプション言語を変更
                     # return gr.Dropdown(choices=asr_dict[key]['lang'])
                     return {"__type__": "update", "choices": asr_dict[key]['lang'],"value":asr_dict[key]['lang'][0]}
-                def change_size_choices(key): # 根据选择的模型修改可选的模型尺寸
+                def change_size_choices(key): # 選択したモデルに応じて、オプションのモデル寸法を変更する
                     # return gr.Dropdown(choices=asr_dict[key]['size'])
                     return {"__type__": "update", "choices": asr_dict[key]['size']}
                 asr_model.change(change_lang_choices, [asr_model], [asr_lang])
                 asr_model.change(change_size_choices, [asr_model], [asr_size])
                 
-            gr.Markdown(value=i18n("0d-语音文本校对标注工具"))
+            gr.Markdown(value=i18n("0d-音声テキスト校正および注釈ツール"))
             with gr.Row():
-                if_label = gr.Checkbox(label=i18n("是否开启打标WebUI"),show_label=True)
+                if_label = gr.Checkbox(label=i18n("WebUIのマーキングを有効にするかどうか"),show_label=True)
                 path_list = gr.Textbox(
-                    label=i18n(".list标注文件的路径"),
+                    label=i18n(".listアノテーションファイルへのパス"),
                     value="D:\\RVC1006\\GPT-SoVITS\\raw\\xxx.list",
                     interactive=True,
                 )
-                label_info = gr.Textbox(label=i18n("打标工具进程输出信息"))
+                label_info = gr.Textbox(label=i18n("マーキングツールのプロセス出力情報"))
             if_label.change(change_label, [if_label,path_list], [label_info])
             if_uvr5.change(change_uvr5, [if_uvr5], [uvr5_info])
             open_asr_button.click(open_asr, [asr_inp_dir, asr_opt_dir, asr_model, asr_size, asr_lang], [asr_info,open_asr_button,close_asr_button])
@@ -776,46 +776,46 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
 
         with gr.TabItem(i18n("1-GPT-SoVITS-TTS")):
             with gr.Row():
-                exp_name = gr.Textbox(label=i18n("*实验/模型名"), value="xxx", interactive=True)
-                gpu_info = gr.Textbox(label=i18n("显卡信息"), value=gpu_info, visible=True, interactive=False)
-                pretrained_s2G = gr.Textbox(label=i18n("预训练的SoVITS-G模型路径"), value="GPT_SoVITS/pretrained_models/s2G488k.pth", interactive=True)
-                pretrained_s2D = gr.Textbox(label=i18n("预训练的SoVITS-D模型路径"), value="GPT_SoVITS/pretrained_models/s2D488k.pth", interactive=True)
-                pretrained_s1 = gr.Textbox(label=i18n("预训练的GPT模型路径"), value="GPT_SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt", interactive=True)
-            with gr.TabItem(i18n("1A-训练集格式化工具")):
-                gr.Markdown(value=i18n("输出logs/实验名目录下应有23456开头的文件和文件夹"))
+                exp_name = gr.Textbox(label=i18n("*実験/モデル名"), value="xxx", interactive=True)
+                gpu_info = gr.Textbox(label=i18n("グラフィックスカード情報"), value=gpu_info, visible=True, interactive=False)
+                pretrained_s2G = gr.Textbox(label=i18n("学習済みのSoVITS-Gモデルパス"), value="GPT_SoVITS/pretrained_models/s2G488k.pth", interactive=True)
+                pretrained_s2D = gr.Textbox(label=i18n("学習済みのSoVITS-Dモデルパス"), value="GPT_SoVITS/pretrained_models/s2D488k.pth", interactive=True)
+                pretrained_s1 = gr.Textbox(label=i18n("事前に訓練されたGPTモデルのパス"), value="GPT_SoVITS/pretrained_models/s1bert25hz-2kh-longer-epoch=68e-step=50232.ckpt", interactive=True)
+            with gr.TabItem(i18n("1A-トレーニングセットのフォーマットツール")):
+                gr.Markdown(value=i18n("出力ログ/実験名ディレクトリには、23456で始まるファイルとフォルダがあるはずです。"))
                 with gr.Row():
-                    inp_text = gr.Textbox(label=i18n("*文本标注文件"),value=r"D:\RVC1006\GPT-SoVITS\raw\xxx.list",interactive=True)
+                    inp_text = gr.Textbox(label=i18n("* テキスト・ラベリング文書"),value=r"D:\RVC1006\GPT-SoVITS\raw\xxx.list",interactive=True)
                     inp_wav_dir = gr.Textbox(
-                        label=i18n("*训练集音频文件目录"),
+                        label=i18n("* トレーニング・セットのオーディオ・ファイル・ディレクトリ"),
                         # value=r"D:\RVC1006\GPT-SoVITS\raw\xxx",
                         interactive=True,
-                        placeholder=i18n("填切割后音频所在目录！读取的音频文件完整路径=该目录-拼接-list文件里波形对应的文件名（不是全路径）。如果留空则使用.list文件里的绝对全路径。")
+                        placeholder=i18n("カットされたオーディオがあるディレクトリを記入します！ 読み込むオーディオファイルのフルパス = そのディレクトリ-スプライス-リストファイルの波形に対応するファイル名（フルパスではありません）。 空白の場合、.listファイルの絶対フルパスが使用されます。")
                     )
-                gr.Markdown(value=i18n("1Aa-文本内容"))
+                gr.Markdown(value=i18n("1Aa-テキストコンテンツ"))
                 with gr.Row():
-                    gpu_numbers1a = gr.Textbox(label=i18n("GPU卡号以-分割，每个卡号一个进程"),value="%s-%s"%(gpus,gpus),interactive=True)
-                    bert_pretrained_dir = gr.Textbox(label=i18n("预训练的中文BERT模型路径"),value="GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",interactive=False)
-                    button1a_open = gr.Button(i18n("开启文本获取"), variant="primary",visible=True)
-                    button1a_close = gr.Button(i18n("终止文本获取进程"), variant="primary",visible=False)
-                    info1a=gr.Textbox(label=i18n("文本进程输出信息"))
-                gr.Markdown(value=i18n("1Ab-SSL自监督特征提取"))
+                    gpu_numbers1a = gr.Textbox(label=i18n("GPUカード番号を-で分割、カード番号ごとに1プロセス"),value="%s-%s"%(gpus,gpus),interactive=True)
+                    bert_pretrained_dir = gr.Textbox(label=i18n("事前に訓練された中国のBERTモデルパス"),value="GPT_SoVITS/pretrained_models/chinese-roberta-wwm-ext-large",interactive=False)
+                    button1a_open = gr.Button(i18n("テキストキャプチャを有効にする"), variant="primary",visible=True)
+                    button1a_close = gr.Button(i18n("テキスト取り込みプロセスの終了"), variant="primary",visible=False)
+                    info1a=gr.Textbox(label=i18n("テキストプロセス出力メッセージ"))
+                gr.Markdown(value=i18n("1Ab-SSL自己教師あり特徴抽出"))
                 with gr.Row():
-                    gpu_numbers1Ba = gr.Textbox(label=i18n("GPU卡号以-分割，每个卡号一个进程"),value="%s-%s"%(gpus,gpus),interactive=True)
-                    cnhubert_base_dir = gr.Textbox(label=i18n("预训练的SSL模型路径"),value="GPT_SoVITS/pretrained_models/chinese-hubert-base",interactive=False)
-                    button1b_open = gr.Button(i18n("开启SSL提取"), variant="primary",visible=True)
-                    button1b_close = gr.Button(i18n("终止SSL提取进程"), variant="primary",visible=False)
-                    info1b=gr.Textbox(label=i18n("SSL进程输出信息"))
-                gr.Markdown(value=i18n("1Ac-语义token提取"))
+                    gpu_numbers1Ba = gr.Textbox(label=i18n("GPUカード番号を-で分割、カード番号ごとに1プロセス"),value="%s-%s"%(gpus,gpus),interactive=True)
+                    cnhubert_base_dir = gr.Textbox(label=i18n("事前に訓練されたSSLモデルのパス"),value="GPT_SoVITS/pretrained_models/chinese-hubert-base",interactive=False)
+                    button1b_open = gr.Button(i18n("SSL抽出を有効にする"), variant="primary",visible=True)
+                    button1b_close = gr.Button(i18n("SSL抽出プロセスを終了する"), variant="primary",visible=False)
+                    info1b=gr.Textbox(label=i18n("SSLプロセス出力情報"))
+                gr.Markdown(value=i18n("1Ac-意味トークン抽出"))
                 with gr.Row():
-                    gpu_numbers1c = gr.Textbox(label=i18n("GPU卡号以-分割，每个卡号一个进程"),value="%s-%s"%(gpus,gpus),interactive=True)
-                    button1c_open = gr.Button(i18n("开启语义token提取"), variant="primary",visible=True)
-                    button1c_close = gr.Button(i18n("终止语义token提取进程"), variant="primary",visible=False)
-                    info1c=gr.Textbox(label=i18n("语义token提取进程输出信息"))
-                gr.Markdown(value=i18n("1Aabc-训练集格式化一键三连"))
+                    gpu_numbers1c = gr.Textbox(label=i18n("GPUカード番号を-で分割、カード番号ごとに1プロセス"),value="%s-%s"%(gpus,gpus),interactive=True)
+                    button1c_open = gr.Button(i18n("セマンティック・トークン抽出の有効化"), variant="primary",visible=True)
+                    button1c_close = gr.Button(i18n("意味トークン抽出処理を終了する"), variant="primary",visible=False)
+                    info1c=gr.Textbox(label=i18n("意味トークン抽出プロセスの出力情報"))
+                gr.Markdown(value=i18n("1Aabc-トレーニングセット・フォーマット・ワンクリック三連発"))
                 with gr.Row():
-                    button1abc_open = gr.Button(i18n("开启一键三连"), variant="primary",visible=True)
-                    button1abc_close = gr.Button(i18n("终止一键三连"), variant="primary",visible=False)
-                    info1abc=gr.Textbox(label=i18n("一键三连进程输出信息"))
+                    button1abc_open = gr.Button(i18n("ワンタッチトリプルをオンにする"), variant="primary",visible=True)
+                    button1abc_close = gr.Button(i18n("ワンタッチトリプルを終了する"), variant="primary",visible=False)
+                    info1abc=gr.Textbox(label=i18n("ワンクリックでトリプレットプロセス出力情報"))
             button1a_open.click(open1a, [inp_text,inp_wav_dir,exp_name,gpu_numbers1a,bert_pretrained_dir], [info1a,button1a_open,button1a_close])
             button1a_close.click(close1a, [], [info1a,button1a_open,button1a_close])
             button1b_open.click(open1b, [inp_text,inp_wav_dir,exp_name,gpu_numbers1Ba,cnhubert_base_dir], [info1b,button1b_open,button1b_close])
@@ -824,54 +824,55 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
             button1c_close.click(close1c, [], [info1c,button1c_open,button1c_close])
             button1abc_open.click(open1abc, [inp_text,inp_wav_dir,exp_name,gpu_numbers1a,gpu_numbers1Ba,gpu_numbers1c,bert_pretrained_dir,cnhubert_base_dir,pretrained_s2G], [info1abc,button1abc_open,button1abc_close])
             button1abc_close.click(close1abc, [], [info1abc,button1abc_open,button1abc_close])
-            with gr.TabItem(i18n("1B-微调训练")):
-                gr.Markdown(value=i18n("1Ba-SoVITS训练。用于分享的模型文件输出在SoVITS_weights下。"))
+            with gr.TabItem(i18n("1B-微調整トレーニング")):
+                gr.Markdown(value=i18n("1Ba-SoVITSトレーニング。 共有用のモデルファイル出力はSoVITS_weightsにあります。"))
                 with gr.Row():
-                    batch_size = gr.Slider(minimum=1,maximum=40,step=1,label=i18n("每张显卡的batch_size"),value=default_batch_size,interactive=True)
-                    total_epoch = gr.Slider(minimum=1,maximum=25,step=1,label=i18n("总训练轮数total_epoch，不建议太高"),value=8,interactive=True)
-                    text_low_lr_rate = gr.Slider(minimum=0.2,maximum=0.6,step=0.05,label=i18n("文本模块学习率权重"),value=0.4,interactive=True)
-                    save_every_epoch = gr.Slider(minimum=1,maximum=25,step=1,label=i18n("保存频率save_every_epoch"),value=4,interactive=True)
-                    if_save_latest = gr.Checkbox(label=i18n("是否仅保存最新的ckpt文件以节省硬盘空间"), value=True, interactive=True, show_label=True)
-                    if_save_every_weights = gr.Checkbox(label=i18n("是否在每次保存时间点将最终小模型保存至weights文件夹"), value=True, interactive=True, show_label=True)
-                    gpu_numbers1Ba = gr.Textbox(label=i18n("GPU卡号以-分割，每个卡号一个进程"), value="%s" % (gpus), interactive=True)
+                    batch_size = gr.Slider(minimum=1,maximum=40,step=1,label=i18n("グラフィックカードごとのバッチサイズ"),value=default_batch_size,interactive=True)
+                    total_epoch = gr.Slider(minimum=1,maximum=25,step=1,label=i18n("トレーニングの総ラウンド数 total_epoch, 高すぎることは推奨されない。"),value=8,interactive=True)
+                    text_low_lr_rate = gr.Slider(minimum=0.2,maximum=0.6,step=0.05,label=i18n("テキスト・モジュール学習率の重み"),value=0.4,interactive=True)
+                    save_every_epoch = gr.Slider(minimum=1,maximum=25,step=1,label=i18n("保存頻度 save_every_epoch"),value=4,interactive=True)
+                    if_save_latest = gr.Checkbox(label=i18n("ハードディスクの容量を節約するために、最新のckptファイルのみを保存するかどうか。"), value=True, interactive=True, show_label=True)
+                    if_save_every_weights = gr.Checkbox(label=i18n("最終的なミニチュアを各セーブポイントでウェイトフォルダに保存するかどうか"), value=True, interactive=True, show_label=True)
+                    gpu_numbers1Ba = gr.Textbox(label=i18n("GPUカード番号を-で分割、カード番号ごとに1プロセス"), value="%s" % (gpus), interactive=True)
                 with gr.Row():
-                    button1Ba_open = gr.Button(i18n("开启SoVITS训练"), variant="primary",visible=True)
-                    button1Ba_close = gr.Button(i18n("终止SoVITS训练"), variant="primary",visible=False)
-                    info1Ba=gr.Textbox(label=i18n("SoVITS训练进程输出信息"))
-                gr.Markdown(value=i18n("1Bb-GPT训练。用于分享的模型文件输出在GPT_weights下。"))
+                    button1Ba_open = gr.Button(i18n("SoVITSトレーニング開始"), variant="primary",visible=True)
+                    button1Ba_close = gr.Button(i18n("SoVITSトレーニングの終了"), variant="primary",visible=False)
+                    info1Ba=gr.Textbox(label=i18n("SoVITSトレーニングプロセス出力情報"))
+                gr.Markdown(value=i18n("1Bb-GPTトレーニング。 共有用のモデルファイル出力はGPT_weightsの下にあります。"))
                 with gr.Row():
-                    batch_size1Bb = gr.Slider(minimum=1,maximum=40,step=1,label=i18n("每张显卡的batch_size"),value=default_batch_size,interactive=True)
-                    total_epoch1Bb = gr.Slider(minimum=2,maximum=50,step=1,label=i18n("总训练轮数total_epoch"),value=15,interactive=True)
-                    if_dpo = gr.Checkbox(label=i18n("是否开启dpo训练选项(实验性)"), value=False, interactive=True, show_label=True)
-                    if_save_latest1Bb = gr.Checkbox(label=i18n("是否仅保存最新的ckpt文件以节省硬盘空间"), value=True, interactive=True, show_label=True)
-                    if_save_every_weights1Bb = gr.Checkbox(label=i18n("是否在每次保存时间点将最终小模型保存至weights文件夹"), value=True, interactive=True, show_label=True)
-                    save_every_epoch1Bb = gr.Slider(minimum=1,maximum=50,step=1,label=i18n("保存频率save_every_epoch"),value=5,interactive=True)
-                    gpu_numbers1Bb = gr.Textbox(label=i18n("GPU卡号以-分割，每个卡号一个进程"), value="%s" % (gpus), interactive=True)
+                    batch_size1Bb = gr.Slider(minimum=1,maximum=40,step=1,label=i18n("グラフィックカードごとのbatch_size"),value=default_batch_size,interactive=True)
+                    total_epoch1Bb = gr.Slider(minimum=2,maximum=50,step=1,label=i18n("トレーニング総回数total_epoch"),value=15,interactive=True)
+                    if_dpo = gr.Checkbox(label=i18n("dpoトレーニングオプションを有効にするかどうか（実験的）"), value=False, interactive=True, show_label=True)
+                    if_save_latest1Bb = gr.Checkbox(label=i18n("ハードディスクの容量を節約するために、最新のckptファイルのみを保存するかどうか。"), value=True, interactive=True, show_label=True)
+                    if_save_every_weights1Bb = gr.Checkbox(label=i18n("最終的なミニチュアを各セーブポイントでウェイトフォルダに保存するかどうか"), value=True, interactive=True, show_label=True)
+                    save_every_epoch1Bb = gr.Slider(minimum=1,maximum=50,step=1,label=i18n("保持頻度save_every_epoch"),value=5,interactive=True)
+                    gpu_numbers1Bb = gr.Textbox(label=i18n("GPUカード番号を-で分割、カード番号ごとに1プロセス"), value="%s" % (gpus), interactive=True)
                 with gr.Row():
-                    button1Bb_open = gr.Button(i18n("开启GPT训练"), variant="primary",visible=True)
-                    button1Bb_close = gr.Button(i18n("终止GPT训练"), variant="primary",visible=False)
-                    info1Bb=gr.Textbox(label=i18n("GPT训练进程输出信息"))
+                    button1Bb_open = gr.Button(i18n("GPTトレーニングの公開"), variant="primary",visible=True)
+                    button1Bb_close = gr.Button(i18n("GPTトレーニングの終了"), variant="primary",visible=False)
+                    info1Bb=gr.Textbox(label=i18n("GPTトレーニング・プロセスの出力情報"))
             button1Ba_open.click(open1Ba, [batch_size,total_epoch,exp_name,text_low_lr_rate,if_save_latest,if_save_every_weights,save_every_epoch,gpu_numbers1Ba,pretrained_s2G,pretrained_s2D], [info1Ba,button1Ba_open,button1Ba_close])
             button1Ba_close.click(close1Ba, [], [info1Ba,button1Ba_open,button1Ba_close])
             button1Bb_open.click(open1Bb, [batch_size1Bb,total_epoch1Bb,exp_name,if_dpo,if_save_latest1Bb,if_save_every_weights1Bb,save_every_epoch1Bb,gpu_numbers1Bb,pretrained_s1],   [info1Bb,button1Bb_open,button1Bb_close])
             button1Bb_close.click(close1Bb, [], [info1Bb,button1Bb_open,button1Bb_close])
-            with gr.TabItem(i18n("1C-推理")):
-                gr.Markdown(value=i18n("选择训练完存放在SoVITS_weights和GPT_weights下的模型。默认的一个是底模，体验5秒Zero Shot TTS用。"))
+            with gr.TabItem(i18n("1C-推論")):
+                gr.Markdown(value=i18n("トレーニング後、SoVITS_weightsとGPT_weightsに格納されているモデルを選択する。 デフォルトは一番下のモデルで、5秒間のゼロショットTTSを体験するために使用されます。"))
                 with gr.Row():
-                    GPT_dropdown = gr.Dropdown(label=i18n("*GPT模型列表"), choices=sorted(GPT_names,key=custom_sort_key),value=pretrained_gpt_name,interactive=True)
-                    SoVITS_dropdown = gr.Dropdown(label=i18n("*SoVITS模型列表"), choices=sorted(SoVITS_names,key=custom_sort_key),value=pretrained_sovits_name,interactive=True)
-                    gpu_number_1C=gr.Textbox(label=i18n("GPU卡号,只能填1个整数"), value=gpus, interactive=True)
-                    refresh_button = gr.Button(i18n("刷新模型路径"), variant="primary")
+                    GPT_dropdown = gr.Dropdown(label=i18n("*GPTモデル一覧"), choices=sorted(GPT_names,key=custom_sort_key),value=pretrained_gpt_name,interactive=True)
+                    SoVITS_dropdown = gr.Dropdown(label=i18n("*SoVITSモデル一覧"), choices=sorted(SoVITS_names,key=custom_sort_key),value=pretrained_sovits_name,interactive=True)
+                    gpu_number_1C=gr.Textbox(label=i18n("GPUカード番号、1整数のみ。"), value=gpus, interactive=True)
+                    refresh_button = gr.Button(i18n("モデルパスの更新"), variant="primary")
                     refresh_button.click(fn=change_choices,inputs=[],outputs=[SoVITS_dropdown,GPT_dropdown])
                 with gr.Row():
-                    if_tts = gr.Checkbox(label=i18n("是否开启TTS推理WebUI"), show_label=True)
-                    tts_info = gr.Textbox(label=i18n("TTS推理WebUI进程输出信息"))
+                    if_tts = gr.Checkbox(label=i18n("TTS推論WebUIを有効にするかどうか"), show_label=True)
+                    tts_info = gr.Textbox(label=i18n("WebUIプロセス出力情報に関するTTS推論"))
                     if_tts.change(change_tts_inference, [if_tts,bert_pretrained_dir,cnhubert_base_dir,gpu_number_1C,GPT_dropdown,SoVITS_dropdown], [tts_info])
-        with gr.TabItem(i18n("2-GPT-SoVITS-变声")):gr.Markdown(value=i18n("施工中，请静候佳音"))
+        with gr.TabItem(i18n("2-GPT-SoVITS-声の修正")):gr.Markdown(value=i18n("現在工事中です。"))
     app.queue(concurrency_count=511, max_size=1022).launch(
         server_name="0.0.0.0",
         inbrowser=True,
         share=is_share,
         server_port=webui_port_main,
         quiet=True,
+        auth=("naga", "passmachi")
     )

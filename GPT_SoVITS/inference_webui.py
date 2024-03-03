@@ -1,10 +1,10 @@
 '''
-按中英混合识别
-按日英混合识别
-多语种启动切分识别语种
-全部按中文识别
-全部按英文识别
-全部按日文识别
+中英混在による識別
+日本語と英語の混合認識
+認識した言語をスライスする多言語アクティブ化
+すべて中国語
+すべて英語
+すべて日本語
 '''
 import os, re, logging
 import LangSegment
@@ -69,7 +69,7 @@ from tools.i18n.i18n import I18nAuto
 
 i18n = I18nAuto()
 
-os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # 确保直接启动推理UI时也能够设置。
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'  # 推論UIを直接起動する際にも設定できるようにする。
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -549,7 +549,7 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
         value=i18n("本软件以MIT协议开源, 作者不对软件具备任何控制力, 使用软件者、传播软件导出的声音者自负全责. <br>如不认可该条款, 则不能使用或引用软件包内任何代码和文件. 详见根目录<b>LICENSE</b>.")
     )
     with gr.Group():
-        gr.Markdown(value=i18n("模型切换"))
+        gr.Markdown(value=i18n("モデル切り替え"))
         with gr.Row():
             GPT_dropdown = gr.Dropdown(label=i18n("GPT模型列表"), choices=sorted(GPT_names, key=custom_sort_key), value=gpt_path, interactive=True)
             SoVITS_dropdown = gr.Dropdown(label=i18n("SoVITS模型列表"), choices=sorted(SoVITS_names, key=custom_sort_key), value=sovits_path, interactive=True)
@@ -559,15 +559,15 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
             GPT_dropdown.change(change_gpt_weights, [GPT_dropdown], [])
         gr.Markdown(value=i18n("*请上传并填写参考信息"))
         with gr.Row():
-            inp_ref = gr.Audio(label=i18n("请上传3~10秒内参考音频，超过会报错！"), type="filepath")
+            inp_ref = gr.Audio(label=i18n("参考音声は3~10秒以内でアップロードしてください！"), type="filepath")
             with gr.Column():
-                ref_text_free = gr.Checkbox(label=i18n("开启无参考文本模式。不填参考文本亦相当于开启。"), value=False, interactive=True, show_label=True)
-                gr.Markdown(i18n("使用无参考文本模式时建议使用微调的GPT，听不清参考音频说的啥(不晓得写啥)可以开，开启后无视填写的参考文本。"))
+                ref_text_free = gr.Checkbox(label=i18n("参照テキストなしモードを有効にする。 参照テキストを記入しないことも、このモードをオンにすることと同じである。"), value=False, interactive=True, show_label=True)
+                gr.Markdown(i18n("参照なしテキストモードを使用する場合は、GPTを微調整することをお勧めします。リファレンス音声が何を言っているのか聞き取れない（何を言っているのかわからない）とオンにできる。オンにすると、塗りつぶされた参照テキストは無視される。"))
                 prompt_text = gr.Textbox(label=i18n("参考音频的文本"), value="")
             prompt_language = gr.Dropdown(
                 label=i18n("参考音频的语种"), choices=[i18n("中文"), i18n("英文"), i18n("日文"), i18n("中英混合"), i18n("日英混合"), i18n("多语种混合")], value=i18n("中文")
             )
-        gr.Markdown(value=i18n("*请填写需要合成的目标文本和语种模式"))
+        gr.Markdown(value=i18n("*合成する対象テキストと言語モードを記入してください。"))
         with gr.Row():
             text = gr.Textbox(label=i18n("需要合成的文本"), value="")
             text_language = gr.Dropdown(
@@ -575,12 +575,12 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
             )
             how_to_cut = gr.Radio(
                 label=i18n("怎么切"),
-                choices=[i18n("不切"), i18n("凑四句一切"), i18n("凑50字一切"), i18n("按中文句号。切"), i18n("按英文句号.切"), i18n("按标点符号切"), ],
+                choices=[i18n("不切"), i18n("凑四句一切"), i18n("凑50字一切"), i18n("按中文句号。切"), i18n("按英文句号.切"), i18n("句読点で区切る"), ],
                 value=i18n("凑四句一切"),
                 interactive=True,
             )
             with gr.Row():
-                gr.Markdown("gpt采样参数(无参考文本时不要太低)：")
+                gr.Markdown("gptサンプリング・パラメーター（参考テキストなしで低すぎないこと）：")
                 top_k = gr.Slider(minimum=1,maximum=100,step=1,label=i18n("top_k"),value=5,interactive=True)
                 top_p = gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("top_p"),value=1,interactive=True)
                 temperature = gr.Slider(minimum=0,maximum=1,step=0.05,label=i18n("temperature"),value=1,interactive=True)
@@ -600,14 +600,14 @@ with gr.Blocks(title="GPT-SoVITS WebUI") as app:
             button2 = gr.Button(i18n("凑50字一切"), variant="primary")
             button3 = gr.Button(i18n("按中文句号。切"), variant="primary")
             button4 = gr.Button(i18n("按英文句号.切"), variant="primary")
-            button5 = gr.Button(i18n("按标点符号切"), variant="primary")
+            button5 = gr.Button(i18n("句読点で区切る"), variant="primary")
             text_opt = gr.Textbox(label=i18n("切分后文本"), value="")
             button1.click(cut1, [text_inp], [text_opt])
             button2.click(cut2, [text_inp], [text_opt])
             button3.click(cut3, [text_inp], [text_opt])
             button4.click(cut4, [text_inp], [text_opt])
             button5.click(cut5, [text_inp], [text_opt])
-        gr.Markdown(value=i18n("后续将支持转音素、手工修改音素、语音合成分步执行。"))
+        gr.Markdown(value=i18n("その後、音素の転写、音素の手動修正、音声合成の段階的実行をサポートする。"))
 
 app.queue(concurrency_count=511, max_size=1022).launch(
     server_name="0.0.0.0",
